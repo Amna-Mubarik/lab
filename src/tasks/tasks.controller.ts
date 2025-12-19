@@ -1,27 +1,15 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-  UseGuards,
-  ValidationPipe,
-  Request,
-} from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
 import { TasksService } from './tasks.service';
-import { CreateTaskDto } from './dto/create-task.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
+import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('tasks')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(JwtAuthGuard)
 export class TasksController {
-  constructor(private tasksService: TasksService) {}
+  constructor(private readonly tasksService: TasksService) {}
 
   @Post()
-  create(@Body(ValidationPipe) createTaskDto: CreateTaskDto, @Request() req) {
+  create(@Body() createTaskDto: CreateTaskDto, @Request() req) {
     return this.tasksService.create(createTaskDto, req.user.id);
   }
 
@@ -36,16 +24,13 @@ export class TasksController {
   }
 
   @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body(ValidationPipe) updateTaskDto: UpdateTaskDto,
-    @Request() req,
-  ) {
+  update(@Param('id') id: string, @Body() updateTaskDto: UpdateTaskDto, @Request() req) {
     return this.tasksService.update(id, updateTaskDto, req.user.id);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string, @Request() req) {
-    return this.tasksService.remove(id, req.user.id);
+    this.tasksService.remove(id, req.user.id);
+    return { message: 'Task deleted successfully' };
   }
 }

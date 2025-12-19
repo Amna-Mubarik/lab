@@ -1,68 +1,70 @@
+// src/auth/auth.service.ts
 import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User } from '../users/user.entity';
-import { SignUpDto } from './dto/signup.dto';
-import { LoginDto } from './dto/login.dto';
+import { User } from './entities/user.entity';
+import { RegisterDto, LoginDto } from './dto/auth.dto';
 
 @Injectable()
 export class AuthService {
-  constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    private jwtService: JwtService,
-  ) {}
+  private users: User[] = [];
 
-  async signUp(signUpDto: SignUpDto): Promise<{ accessToken: string }> {
-    const { email, password, name } = signUpDto;
+  constructor(private jwtService: JwtService) {}
 
-    const existingUser = await this.userRepository.findOne({ where: { email } });
+  async register(registerDto: RegisterDto) {
+    const existingUser = this.users.find(u => u.email === registerDto.email);
     if (existingUser) {
       throw new ConflictException('Email already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = this.userRepository.create({
-      email,
+    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+    const user = new User({
+      email: registerDto.email,
       password: hashedPassword,
-      name,
+      name: registerDto.name,
     });
 
-    await this.userRepository.save(user);
+    this.users.push(user);
 
-    const payload = { email: user.email, sub: user.id };
-    const accessToken = this.jwtService.sign(payload);
-
-    return { accessToken };
+    const token = await this.generateToken(user);
+    return {
+      access_token: token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+    };
   }
 
-  async login(loginDto: LoginDto): Promise<{ accessToken: string }> {
-    const { email, password } = loginDto;
-
-    const user = await this.userRepository.findOne({ where: { email } });
+  async login(loginDto: LoginDto) {
+    const user = this.users.find(u => u.email === loginDto.email);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { email: user.email, sub: user.id };
-    const accessToken = this.jwtService.sign(payload);
-
-    return { accessToken };
+    const token = await this.generateToken(user);
+    return {
+      access_token: token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+    };
   }
 
-  async validateUser(userId: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new UnauthorizedException();
-    }
-    return user;
+  async validateUser(userId: string): Promise<User | null> {
+    return this.users.find(u => u.id === userId) || null;
+  }
+
+  private async generateToken(user: User): Promise<string> {
+    const payload = { sub: user.id, email: user.email };
+    return this.jwtService.signAsync(payload);
   }
 }

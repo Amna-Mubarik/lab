@@ -1,33 +1,15 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
-import { User } from './users/user.entity';
-import { Task } from './tasks/task.entity';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
+    JwtModule.register({
+      global: true,
+      secret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+      signOptions: { expiresIn: '24h' },
     }),
-    // TypeOrmModule.forRoot({
-    //   type: 'postgres',
-    //   host: process.env.DB_HOST || 'localhost',
-    //   port: parseInt(process.env.DB_PORT || '5432'),
-    //   username: process.env.DB_USERNAME || 'postgres',
-    //   password: process.env.DB_PASSWORD || 'admin123',
-    //   database: process.env.DB_NAME || 'taskdb',
-    //   entities: [User, Task],
-    //   synchronize: true, 
-    // }),
-    TypeOrmModule.forRoot({
-  type: 'postgres',
-  url: process.env.DATABASE_URL,
-  entities: [User, Task],
-  synchronize: true,
-}),
-
     AuthModule,
     TasksModule,
   ],

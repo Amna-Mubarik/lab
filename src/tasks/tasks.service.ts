@@ -1,48 +1,54 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Task } from './task.entity';
-import { CreateTaskDto } from './dto/create-task.dto';
-import { UpdateTaskDto } from './dto/update-task.dto';
+// src/tasks/tasks.service.ts
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Task } from './entities/task.entity';
+import { CreateTaskDto, UpdateTaskDto } from './dto/task.dto';
 
 @Injectable()
 export class TasksService {
-  constructor(
-    @InjectRepository(Task)
-    private readonly taskRepository: Repository<Task>,
-  ) {}
+  private tasks: Task[] = [];
 
-  async create(createTaskDto: CreateTaskDto, userId: string): Promise<Task> {
-    const task = this.taskRepository.create({
+  create(createTaskDto: CreateTaskDto, userId: string): Task {
+    const task = new Task({
       ...createTaskDto,
       userId,
     });
-    return await this.taskRepository.save(task);
-  }
 
-  async findAll(userId: string): Promise<Task[]> {
-    return await this.taskRepository.find({ where: { userId } });
-  }
-
-  async findOne(id: string, userId: string): Promise<Task> {
-    const task = await this.taskRepository.findOne({ where: { id, userId } });
-    if (!task) {
-      throw new NotFoundException('Task not found');
-    }
+    this.tasks.push(task);
     return task;
   }
 
-  async update(id: string, updateTaskDto: UpdateTaskDto, userId: string): Promise<Task> {
-    const task = await this.findOne(id, userId);
-    Object.assign(task, updateTaskDto);
-    task.updatedAt = new Date();
-    return await this.taskRepository.save(task);
+  findAll(userId: string): Task[] {
+    return this.tasks.filter(task => task.userId === userId);
   }
 
-  async remove(id: string, userId: string): Promise<void> {
-    const result = await this.taskRepository.delete({ id, userId });
-    if (result.affected === 0) {
-      throw new NotFoundException('Task not found');
+  findOne(id: string, userId: string): Task {
+    const task = this.tasks.find(t => t.id === id);
+
+    if (!task) {
+      throw new NotFoundException(`Task with ID ${id} not found`);
     }
+
+    if (task.userId !== userId) {
+      throw new ForbiddenException('You do not have access to this task');
+    }
+
+    return task;
+  }
+
+  update(id: string, updateTaskDto: UpdateTaskDto, userId: string): Task {
+    const task = this.findOne(id, userId);
+
+    Object.assign(task, {
+      ...updateTaskDto,
+      updatedAt: new Date(),
+    });
+
+    return task;
+  }
+
+  remove(id: string, userId: string): void {
+    const task = this.findOne(id, userId);
+    const index = this.tasks.indexOf(task);
+    this.tasks.splice(index, 1);
   }
 }
